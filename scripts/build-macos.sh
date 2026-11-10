@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+APP="${MOYE_APP_OUTPUT:-$ROOT/build/墨页.app}"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/Web"
+cp "$ROOT/native/Info.plist" "$APP/Contents/Info.plist"
+/usr/bin/ditto "$ROOT/dist" "$APP/Contents/Resources/Web"
+xcrun swiftc -O -target arm64-apple-macosx13.0 -framework AppKit -framework WebKit -framework UniformTypeIdentifiers -framework PDFKit "$ROOT/native/main.swift" "$ROOT/native/PDFExporter.swift" -o "$APP/Contents/MacOS/MoYe"
+xcrun swiftc -framework AppKit "$ROOT/scripts/create-icon.swift" -o "$ROOT/build/create-icon"
+"$ROOT/build/create-icon" "$ROOT/build"
+/usr/bin/iconutil -c icns "$ROOT/build/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
+node "$ROOT/scripts/third-party-notices.mjs" "$APP/Contents/Resources/ThirdPartyNotices.txt"
+cp "$ROOT/LICENSE" "$APP/Contents/Resources/License.txt"
+/usr/bin/codesign --force --deep --sign - "$APP"
+printf '\n构建完成：%s\n' "$APP"

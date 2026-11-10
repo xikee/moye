@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>墨页</title>
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar" aria-label="文档侧边栏">
+        <div class="brand"><span class="brand-mark">墨</span><span>墨页<span class="brand-en">MOYE</span></span><button id="new-doc" class="icon-button" title="新建文档 ⌘N" aria-label="新建文档"><i data-lucide="square-pen"></i></button></div>
+        <button id="open-file" class="open-button"><i data-lucide="folder-open"></i><span>打开 Markdown 文件</span><kbd>⌘O</kbd></button>
+        <div class="sidebar-tabs" role="tablist" aria-label="侧边栏内容"><button class="active" data-tab="outline" role="tab" aria-selected="true">文档大纲</button><button data-tab="files" role="tab" aria-selected="false">文件</button></div>
+        <div id="outline-panel" class="sidebar-panel"><div class="section-label">本文目录 <span id="heading-count">0</span></div><nav id="outline" aria-label="文档大纲"></nav></div>
+        <div id="files-panel" class="sidebar-panel" hidden><button id="open-folder" class="folder-button"><i data-lucide="folder-plus"></i>打开文件夹</button><div class="section-label" id="folder-label">最近打开</div><nav id="files" aria-label="文件列表"></nav></div>
+        <div class="sidebar-bottom"><div class="local-dot"></div><span>本地文件 · 安心书写</span><button id="help" class="icon-button" title="快捷键与帮助" aria-label="快捷键与帮助"><i data-lucide="circle-help"></i></button></div>
+      </aside>
+      <main class="workspace">
+        <header class="document-bar"><div class="document-location"><button id="toggle-sidebar" class="icon-button" title="切换侧边栏 ⌘⇧L" aria-label="切换侧边栏"><i data-lucide="panel-left"></i></button><span class="bar-divider"></span><i data-lucide="file-text"></i><span id="document-name">开始书写.md</span><span id="dirty-dot" class="dirty-dot" hidden></span></div><div class="document-actions"><button id="source-toggle" class="text-button" title="切换源码模式 ⌘/" aria-pressed="false"><i data-lucide="code-xml"></i><span>源码</span></button><button id="focus-toggle" class="icon-button" title="专注模式 ⌘⇧F" aria-label="专注模式" aria-pressed="false"><i data-lucide="scan"></i></button><button id="theme-toggle" class="icon-button" title="切换明暗主题" aria-label="切换明暗主题"><i data-lucide="sun-moon"></i></button><div class="bar-divider"></div><button id="save-file" class="save-button" title="保存文件 ⌘S"><i data-lucide="save"></i>保存</button><button id="more-button" class="icon-button" title="更多操作" aria-label="更多操作" aria-expanded="false"><i data-lucide="ellipsis"></i></button></div></header>
+        <div id="find-bar" hidden><i data-lucide="search"></i><input id="find-input" placeholder="在文档中查找…" aria-label="查找内容" /><span id="find-result"></span><button id="find-prev" class="icon-button" title="上一个" aria-label="上一个"><i data-lucide="chevron-up"></i></button><button id="find-next" class="icon-button" title="下一个" aria-label="下一个"><i data-lucide="chevron-down"></i></button><button id="find-close" class="icon-button" title="关闭查找" aria-label="关闭查找"><i data-lucide="x"></i></button></div>
+        <div id="editor-scroll"><div class="paper-meta"><span id="mode-label">MARKDOWN</span><span class="meta-line"></span><span id="reading-time">3 分钟阅读</span></div><div id="rich-editor" aria-label="Markdown 即时渲染编辑器"></div><div id="source-editor" hidden aria-label="Markdown 源码编辑器"></div><div class="paper-end"><span>·</span><span>写下此刻的想法</span><span>·</span></div></div>
+        <footer class="status-bar"><div><span class="status-dot"></span><span id="save-status">已就绪</span></div><div><span id="word-count">0 字</span><span class="status-separator"></span><span id="line-count">1 行</span><span class="status-separator"></span><span>UTF-8</span><button id="zoom-button" title="调整文字大小">100%</button><button id="status-mode" title="切换编辑模式">即时渲染 <i data-lucide="chevron-down"></i></button></div></footer>
+      </main>
+    </div>
+    <div id="more-menu" class="popup-menu" hidden><span class="menu-caption">文档</span><button data-action="new"><i data-lucide="file-plus-2"></i>新建文档<kbd>⌘N</kbd></button><button data-action="saveAs"><i data-lucide="files"></i>另存为…<kbd>⌘⇧S</kbd></button><div class="menu-separator"></div><span class="menu-caption">导出</span><button data-action="exportHTML"><i data-lucide="file-code-2"></i>导出 HTML</button><button data-action="exportPDF"><i data-lucide="file-down"></i>导出 PDF</button><div class="menu-separator"></div><button data-command="typewriter"><i data-lucide="text-cursor-input"></i>打字机模式<span id="typewriter-check"></span></button><button data-command="help"><i data-lucide="keyboard"></i>键盘快捷键</button></div>
+    <dialog id="help-dialog"><div class="dialog-head"><div class="dialog-logo">墨</div><div><h2>让想法，自然成文。</h2><p>墨页 · 你的本地 Markdown 书桌</p></div><button id="close-help" class="icon-button" aria-label="关闭"><i data-lucide="x"></i></button></div><div class="shortcuts"><span>新建文档</span><kbd>⌘ N</kbd><span>打开文件</span><kbd>⌘ O</kbd><span>保存 / 另存为</span><kbd>⌘ S / ⌘ ⇧ S</kbd><span>源码 / 即时渲染</span><kbd>⌘ /</kbd><span>查找</span><kbd>⌘ F</kbd><span>粗体 / 斜体 / 链接</span><kbd>⌘ B / I / K</kbd><span>显示 / 隐藏侧栏</span><kbd>⌘ ⇧ L</kbd><span>专注模式</span><kbd>⌘ ⇧ F</kbd><span>调整文字大小</span><kbd>⌘ + / − / 0</kbd></div><p class="dialog-tip">输入 <code># 空格</code> 创建标题，<code>&gt; 空格</code> 创建引用，<code>/</code> 打开插入菜单。<br>草稿自动暂存本机，按 ⌘S 将内容写入 Markdown 文件。</p></dialog>
+    <div id="toast" role="status"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
