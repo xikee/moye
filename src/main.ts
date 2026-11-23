@@ -21,7 +21,7 @@ import { welcome } from './welcome';
 import { configureMarkdown, documentHTML } from './markdown-editor';
 
 type FileEntry = { name: string; path: string; relative?: string };
-type DocumentPayload = { content: string; name: string; path?: string; dirty?: boolean; recovered?: boolean };
+type DocumentPayload = { content: string; name: string; path?: string; dirty?: boolean; recovered?: boolean; generation?: number };
 type NativePayload = { action: string; [key: string]: unknown };
 declare global {
   interface Window {
@@ -51,6 +51,7 @@ let currentName = '开始书写.md';
 let currentPath = '';
 let sourceMode = false;
 let suppressChanges = true;
+let documentGeneration = 0;
 let source: EditorView;
 let outlineTimer: ReturnType<typeof setTimeout>;
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -137,7 +138,7 @@ crepe.editor.use($prose(() => new Plugin({
 function changed(markdown: string) {
   if (currentMarkdown === markdown) return;
   currentMarkdown = markdown;
-  native('change', { content: markdown });
+  native('change', { content: markdown, generation: documentGeneration });
   if (!window.webkit) {
     localStorage.setItem('moye-browser-draft', markdown);
     setDocumentState({ name: currentName, dirty: true, status: '草稿已暂存' });
@@ -255,6 +256,7 @@ function setDocumentState(payload: { name: string; dirty: boolean; path?: string
 }
 
 function loadDocument(payload: DocumentPayload) {
+  documentGeneration = payload.generation ?? 0;
   clearTimeout(outlineTimer);
   currentMarkdown = payload.content;
   richMarkdown = payload.content;
