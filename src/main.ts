@@ -1,13 +1,14 @@
 import { Crepe } from '@milkdown/crepe';
 import { editorViewCtx } from '@milkdown/kit/core';
-import { $prose, callCommand, getHTML, replaceAll } from '@milkdown/kit/utils';
+import { $prose, callCommand, replaceAll } from '@milkdown/kit/utils';
 import { toggleStrongCommand, toggleEmphasisCommand } from '@milkdown/kit/preset/commonmark';
 import { toggleLinkCommand } from '@milkdown/kit/component/link-tooltip';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
+import { undoDepth as richUndoDepth } from '@milkdown/kit/prose/history';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { EditorState } from '@codemirror/state';
 import { EditorView, lineNumbers, keymap, highlightActiveLine } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentWithTab, undoDepth as sourceUndoDepth } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { SearchQuery, setSearchQuery, findNext, findPrevious, search } from '@codemirror/search';
@@ -17,9 +18,10 @@ import '@milkdown/crepe/theme/classic.css';
 import './style.css';
 import { documentOutline, documentStats, safeFilename } from './document.mjs';
 import { welcome } from './welcome';
+import { configureMarkdown, documentHTML } from './markdown-editor';
 
 type FileEntry = { name: string; path: string; relative?: string };
-type DocumentPayload = { content: string; name: string; path?: string; dirty?: boolean; recovered?: boolean };
+type DocumentPayload = { content: string; name: string; path?: string; dirty?: boolean; recovered?: boolean; generation?: number };
 type NativePayload = { action: string; [key: string]: unknown };
 declare global {
   interface Window {
@@ -44,10 +46,12 @@ const native = (action: string, data: Record<string, unknown> = {}) => {
   else browserAction(action, data);
 };
 let currentMarkdown = welcome;
+let richMarkdown = welcome;
 let currentName = '开始书写.md';
 let currentPath = '';
 let sourceMode = false;
 let suppressChanges = true;
+let documentGeneration = 0;
 let source: EditorView;
 let outlineTimer: ReturnType<typeof setTimeout>;
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -117,12 +121,16 @@ const crepe = new Crepe({
     },
   },
 });
+configureMarkdown(crepe.editor);
 crepe.editor.use(searchPlugin);
 // 直接观察 ProseMirror 文档变更，避免 Milkdown 的 200ms 防抖漏掉紧接着的保存。
 crepe.editor.use($prose(() => new Plugin({
   view: () => ({
     update(view, previous) {
-      if (!suppressChanges && !sourceMode && !previous.doc.eq(view.state.doc)) changed(crepe.getMarkdown());
+      if (!suppressChanges && !sourceMode && !previous.doc.eq(view.state.doc)) {
+        richMarkdown = crepe.getMarkdown();
+        changed(richMarkdown);
+      }
     },
   }),
 })));
@@ -130,7 +138,7 @@ crepe.editor.use($prose(() => new Plugin({
 function changed(markdown: string) {
   if (currentMarkdown === markdown) return;
   currentMarkdown = markdown;
-  native('change', { content: markdown });
+  native('change', { content: markdown, generation: documentGeneration });
   if (!window.webkit) {
     localStorage.setItem('moye-browser-draft', markdown);
     setDocumentState({ name: currentName, dirty: true, status: '草稿已暂存' });
@@ -200,18 +208,22 @@ function watchHeadings() {
 }
 
 function syncRich() {
+  if (richMarkdown === currentMarkdown) return;
   const previous = suppressChanges;
   suppressChanges = true;
-  crepe.editor.action(replaceAll(currentMarkdown));
-  // 程序载入不应被视为用户编辑，也不应改变原始 Markdown。
-  suppressChanges = previous;
+  try {
+    // 另一模式修改后建立新的历史基线，避免撤销跨过外部替换而抹去新内容。
+    crepe.editor.action(replaceAll(currentMarkdown, true));
+    richMarkdown = currentMarkdown;
+  } finally { suppressChanges = previous; }
 }
 
 function toggleSource() {
   const scroll = $('editor-scroll');
   const ratio = scroll.scrollTop / Math.max(1, scroll.scrollHeight - scroll.clientHeight);
   if (!sourceMode) {
-    source.dispatch({ changes: { from: 0, to: source.state.doc.length, insert: currentMarkdown } });
+    // 仅查看另一模式时保留已有历史和选区，不创建整篇替换的撤销步骤。
+    if (source.state.doc.toString() !== currentMarkdown) source.setState(makeSourceState(currentMarkdown));
   } else syncRich();
   sourceMode = !sourceMode;
   $('rich-editor').hidden = sourceMode;
@@ -232,6 +244,7 @@ function toggleSource() {
 }
 
 function setDocumentState(payload: { name: string; dirty: boolean; path?: string; status?: string }) {
+  const previousPath = currentPath;
   currentName = payload.name;
   if (payload.path !== undefined) currentPath = payload.path;
   $('document-name').textContent = currentName;
@@ -239,18 +252,20 @@ function setDocumentState(payload: { name: string; dirty: boolean; path?: string
   $('dirty-dot').hidden = !payload.dirty;
   $('save-status').textContent = payload.status || (payload.dirty ? '草稿已暂存' : currentPath ? '文件已保存' : '已就绪');
   document.title = `${currentName} — 墨页`;
-  renderFiles();
+  if (previousPath !== currentPath) renderFiles();
 }
 
 function loadDocument(payload: DocumentPayload) {
+  documentGeneration = payload.generation ?? 0;
+  clearTimeout(outlineTimer);
   currentMarkdown = payload.content;
-  currentPath = payload.path || '';
+  richMarkdown = payload.content;
   suppressChanges = true;
   source.setState(makeSourceState(payload.content));
   crepe.editor.action(replaceAll(payload.content, true));
   $('editor-scroll').scrollTop = 0;
   selectedHeading = 0;
-  setDocumentState({ ...payload, dirty: payload.dirty || false, status: payload.recovered ? '已恢复上次草稿' : undefined });
+  setDocumentState({ ...payload, path: payload.path || '', dirty: payload.dirty || false, status: payload.recovered ? '已恢复上次草稿' : undefined });
   suppressChanges = false;
   refreshDocument();
   updateSearch();
@@ -393,9 +408,8 @@ function makeSourceState(content: string) {
 }
 
 function exportHTML() {
-  if (sourceMode) syncRich();
   const fragment = document.createElement('template');
-  fragment.innerHTML = crepe.editor.action(getHTML());
+  fragment.innerHTML = documentHTML(crepe.editor, sourceMode ? currentMarkdown : undefined);
   fragment.content.querySelectorAll('li[data-item-type="task"]').forEach(item => {
     (item as HTMLElement).style.listStyle = 'none';
     const checkbox = document.createElement('input');
@@ -481,7 +495,7 @@ window.moye = {
   files: (files, folder) => { fileEntries = files; $('folder-label').textContent = folder || '最近打开'; renderFiles(); },
   command, toast, exportHTML,
   preparePrint: () => { if (sourceMode) syncRich(); },
-  debugState: () => ({ ready: true, sourceMode, markdown: currentMarkdown, name: currentName, path: currentPath, stats: documentStats(currentMarkdown), headings: documentOutline(currentMarkdown).length, editor: !!document.querySelector('.ProseMirror') }),
+  debugState: () => ({ ready: true, sourceMode, markdown: currentMarkdown, richMarkdown, name: currentName, path: currentPath, stats: documentStats(currentMarkdown), headings: documentOutline(currentMarkdown).length, editor: !!document.querySelector('.ProseMirror'), sourceUndoDepth: sourceUndoDepth(source.state), richUndoDepth: crepe.editor.action(ctx => richUndoDepth(ctx.get(editorViewCtx).state)) }),
 };
 window.__moyeWelcome = welcome;
 

@@ -1,5 +1,6 @@
 node_modules/
 dist/
 build/
+/Typora.app/
 .DS_Store
 *.log
