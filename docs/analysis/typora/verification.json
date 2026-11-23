@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-19",
+  "platform": "macOS 14.8.9 arm64",
+  "unitTests": { "passed": 3, "failed": 0 },
+  "nativeRecoveryTests": { "passed": 8, "failed": 0 },
+  "build": "passed",
+  "smoke": {
+    "checks": {
+      "changedSourceResetsRichHistory": true,
+      "editorReady": true,
+      "fileListStableDuringEdit": true,
+      "htmlExport": true,
+      "imageAltPreserved": true,
+      "loadPreservesMarkdown": true,
+      "modeSwitchPreservesMarkdown": true,
+      "multipagePDF": true,
+      "nativeSave": true,
+      "outline": true,
+      "pdfExport": true,
+      "richEditReachesNative": true,
+      "richHistorySurvivesViewingSource": true,
+      "sourceEditReachesNative": true,
+      "sourceExportDoesNotMutateRichState": true,
+      "sourceHistorySurvivesViewingRich": true,
+      "sourceMode": true,
+      "sourceSyncHasNoUndoEntry": true
+    },
+    "passed": true
+  },
+  "limitations": [
+    "未在远端运行 CI",
+    "未验证所有 Markdown 语法的往返兼容性",
+    "未进行大文档性能基准或全部导出字形视觉验证",
+    "smoke 模式未逐个操作原生系统文件选择与确认面板"
+  ]
+}

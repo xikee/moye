@@ -1,4 +1,28 @@
-# v0.1.0 验证记录
+# 墨页验证记录
+
+## 2026-11-19 定向重构验证
+
+环境：macOS 14.8.9、Apple Silicon。`npm test` 3 项通过，`npm run test:native` 8 项通过，`npm run build` 和签名检查通过。真实 WKWebView 集成检查共 18 项通过；浅色和深色窗口截图已查看，界面正常。
+
+新增覆盖：
+
+| 检查 | 验证内容 |
+| --- | --- |
+| imageAltPreserved | 正文实际编辑后，中文、数字、空图片 alt 与标题保留 |
+| fileListStableDuringEdit | 编辑时原生状态回传不会重建文件列表节点 |
+| richHistorySurvivesViewingSource | 仅查看源码后，正文撤销历史和内容保留 |
+| sourceSyncHasNoUndoEntry | 首次同步源码不产生整篇替换撤销项 |
+| sourceExportDoesNotMutateRichState | 源码修改后导出使用新源码，但不修改隐藏正文及其历史 |
+| sourceHistorySurvivesViewingRich | 仅查看正文后，源码撤销历史保留 |
+| changedSourceResetsRichHistory | 源码修改后正文使用新的撤销基线 |
+
+原生恢复测试覆盖：干净快照采用磁盘新内容、保留文件路径、未保存编辑及原保存基线、文件丢失时保留草稿、无路径草稿隔离，以及 JSON 格式兼容。该测试已加入 GitHub Actions；远端 CI 本次未运行。
+
+完整结果见 [verification.json](analysis/typora/verification.json)，方案依据见 [Typora 对比与墨页改进记录](TYPORA-ASSESSMENT.md)。本地 smoke 输出与截图位于 `build/refactor-check/`。PDF 检查输出系统 CoreText 字体回退提示，页数及末段文本断言通过；未对所有导出字形与公式逐一做视觉核对。
+
+以下保留初始版本的验证记录。
+
+## v0.1.0 初始验证
 
 验证日期：2026-11-10。环境：macOS 14.8.9，Apple Silicon，Swift 5.9；Web 资源完全随应用打包，无运行时 CDN 或服务依赖。
 

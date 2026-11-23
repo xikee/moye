@@ -21,6 +21,7 @@ jobs:
           cache: npm
       - run: npm ci --no-fund --no-audit
       - run: npm test
+      - run: npm run test:native
       - run: npm run build
       - name: Verify code signature
         run: codesign --verify --deep --strict "build/墨页.app"

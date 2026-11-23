@@ -1,0 +1,57 @@
+{
+  "id": "ev_9841388c03e1c65b4993e4c2cdf0d79e6803c4004636dc117eae2b9728ce4628",
+  "operation": "js_app_map",
+  "authority": "original-files",
+  "confidence": "derived",
+  "coverage": {
+    "examined": 15,
+    "next_offset": 15,
+    "status": "partial",
+    "total": 38
+  },
+  "environment": {
+    "clean_room": false,
+    "engine": "builtin",
+    "engine_version": "0.6.1",
+    "host": "macos-aarch64"
+  },
+  "limitations": [
+    {
+      "code": "node_cap",
+      "message": "31777 graph nodes were dropped at the 2000-node cap; raise max_nodes to keep them."
+    },
+    {
+      "code": "static_only",
+      "message": "Static reading only: code built at run time (eval, computed requires, remote content) is invisible; IPC pairs need literal channel names."
+    },
+    {
+      "code": "paged_modules",
+      "message": "Only one page of module summaries is included; tools that take this evidence need every module, so pass the input path to them or use offset=0 with a limit above modules_total."
+    }
+  ],
+  "summary": "Electron app TypeMark: 38 source files, 8 IPC channel(s) (0 paired), 0 window(s), 28 endpoint(s), 0 route(s), bundled with browserify/esbuild/tsc.",
+  "result": {
+    "app_kind": "electron",
+    "bundlers": [
+      "browserify",
+      "esbuild",
+      "tsc"
+    ],
+    "modules_total": 38,
+    "stats": {
+      "api_operations": 0,
+      "bundle_modules": 1236,
+      "edges": 7859,
+      "endpoints": 187,
+      "files": 188,
+      "functions": 1947,
+      "ipc_channels": 8,
+      "listed": 340,
+      "modules": 38,
+      "nodes": 2000,
+      "paired_channels": 0
+    },
+    "summary": "Electron app TypeMark: 38 source files, 8 IPC channel(s) (0 paired), 0 window(s), 28 endpoint(s), 0 route(s), bundled with browserify/esbuild/tsc."
+  },
+  "interpretation": "静态 JS 标签不能代表 macOS 主程序运行时。该包原生导入含 AppKit 与 WKWebView；见 webkit-imports.json。完整原始输出保留在本地 build/refactor-check/craft-javascript-raw.json。"
+}

@@ -4,13 +4,6 @@ import UniformTypeIdentifiers
 import PDFKit
 
 // 编辑内容由原生层持有；WebView 只负责排版和编辑交互。
-struct Draft: Codable {
-    var content: String
-    var savedContent: String
-    var path: String?
-    var name: String
-}
-
 final class ResourceHandler: NSObject, WKURLSchemeHandler {
     var documentDirectory: URL?
     let root: URL
@@ -220,8 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             applyTheme(payload["dark"] as? Bool ?? false)
             if isSmokeTest { runSmokeTest(); return }
             if let data = try? Data(contentsOf: recoveryURL), let draft = try? JSONDecoder().decode(Draft.self, from: data) {
-                savedContent = draft.savedContent
-                load(draft.content, url: draft.path.map { URL(fileURLWithPath: $0) }, name: draft.name, recovered: true)
+                let disk = draft.path.flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }
+                let restored = draft.resolvingDiskContent(disk)
+                savedContent = restored.savedContent
+                load(restored.content, url: restored.path.map { URL(fileURLWithPath: $0) }, name: restored.name, recovered: restored.isDirty || restored.path == nil)
             } else {
                 load(payload["welcome"] as? String ?? "", url: nil, name: "开始书写.md")
             }
@@ -533,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 let saved = save()
                 let savedText = try String(contentsOf: testFile, encoding: .utf8)
                 checks["nativeSave"] = saved && savedText == content && !dirty
+                checks.merge(try await runEditingRegressionChecks()) { _, latest in latest }
 
                 load(fixture, url: nil, name: "集成测试.md")
                 try await Task.sleep(nanoseconds: 200_000_000)
@@ -567,6 +563,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 finishSmokeTest(["passed": checks.values.allSatisfy { $0 }, "checks": checks])
             } catch { finishSmokeTest(["passed": false, "error": error.localizedDescription]) }
         }
+    }
+
+    @MainActor func runEditingRegressionChecks() async throws -> [String: Bool] {
+        var checks: [String: Bool] = [:]
+        func editorState() async throws -> [String: Any] {
+            let json = try await webView.evaluateJavaScript("JSON.stringify(window.moye.debugState())") as? String ?? "{}"
+            return try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] ?? [:]
+        }
+        let imageFixture = "# 图片语义\n\n![示意图](missing.png \"说明\")\n\n![42](numeric.png)\n\n![](empty.png)\n\n保留正文。\n"
+        load(imageFixture, url: nil, name: "图片回归.md")
+        _ = try await webView.evaluateJavaScript("window.moye.files([{name:'测试.md',path:'/tmp/moye-test.md'}]); window.__moyeFileNode=document.querySelector('.file-item'); const heading=document.querySelector('.ProseMirror h1'); const range=document.createRange(); range.selectNodeContents(heading); range.collapse(false); const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range); heading.closest('.ProseMirror').focus(); document.execCommand('insertText',false,'修改');")
+        let edited = try await editorState()
+        let editedMarkdown = edited["markdown"] as? String ?? ""
+        checks["imageAltPreserved"] = editedMarkdown.contains("![示意图](missing.png \"说明\")") && editedMarkdown.contains("![42](numeric.png)") && editedMarkdown.contains("![](empty.png)") && editedMarkdown.contains("图片语义修改")
+        checks["fileListStableDuringEdit"] = try await webView.evaluateJavaScript("window.__moyeFileNode===document.querySelector('.file-item')") as? Bool == true
+        let richDepth = edited["richUndoDepth"] as? Int ?? 0
+        _ = try await webView.evaluateJavaScript("window.moye.command('source'); window.moye.command('source'); true")
+        let roundtrip = try await editorState()
+        checks["richHistorySurvivesViewingSource"] = richDepth > 0 && roundtrip["richUndoDepth"] as? Int == richDepth && roundtrip["markdown"] as? String == editedMarkdown
+
+        _ = try await webView.evaluateJavaScript("window.moye.command('source'); true")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let sourceBeforeEdit = try await editorState()
+        checks["sourceSyncHasNoUndoEntry"] = sourceBeforeEdit["sourceUndoDepth"] as? Int == 0
+        _ = try await webView.evaluateJavaScript("document.querySelector('#source-editor .cm-content').focus(); document.execCommand('selectAll'); document.execCommand('insertText',false,'# 源码导出回归\\n\\n源码编辑后导出不应改写正文历史。\\n')")
+        let beforeExport = try await editorState()
+        let exported = try await webView.evaluateJavaScript("window.moye.exportHTML()") as? String ?? ""
+        let afterExport = try await editorState()
+        checks["sourceExportDoesNotMutateRichState"] = exported.contains("源码导出回归") && beforeExport["richMarkdown"] as? String == afterExport["richMarkdown"] as? String && beforeExport["richUndoDepth"] as? Int == afterExport["richUndoDepth"] as? Int
+        _ = try await webView.evaluateJavaScript("window.moye.command('source'); window.moye.command('source'); true")
+        let sourceRoundtrip = try await editorState()
+        checks["sourceHistorySurvivesViewingRich"] = (beforeExport["sourceUndoDepth"] as? Int ?? 0) > 0 && sourceRoundtrip["sourceUndoDepth"] as? Int == beforeExport["sourceUndoDepth"] as? Int
+        checks["changedSourceResetsRichHistory"] = sourceRoundtrip["richUndoDepth"] as? Int == 0
+        _ = try await webView.evaluateJavaScript("window.moye.command('source'); true")
+        return checks
     }
 
     func finishSmokeTest(_ result: [String: Any]) {
